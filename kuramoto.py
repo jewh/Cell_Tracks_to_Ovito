@@ -41,6 +41,83 @@ def stochastic(time_step, phase_noise=1.0):
     output = np.sqrt(2*phase_noise) * delta_wt
     return output
 
+# Now we want to interpolate the trajectories
+def interpolate_tracks(path_to_data_file, n=100):
+    """
+    Interpolates the cell movement between timepoints.
+
+    Inputs: 
+    path_to_data_file (str) - path to .csv file containing cell tracking data.
+    n (int) - number of time points generated between each two time points in the raw data.
+
+    Output: array with cell positions at specified time
+    """
+    # Need the position of each cell at successive time points
+    data = pd.read_csv(path_to_data_file)
+    times = set(data['Time'])
+
+    # Initialise the output array
+    # time in rows, cell identity in columns, each entry a length 5 array with t, x, y, z coords and identifier
+    n_cols = len(times) + n * (len(times)-1) 
+    cells = list(set(data['TrackID'])) # need to make it into a list, as sets don't support indexing
+    n_rows = len(cells) # get all the cell identifiers
+    output = np.zeros((n_rows, n_cols, 5))
+
+    # Now interpolate times, and create a large time array
+    interpold_time = np.linspace(times[0], times[1], n, endpoint=False) # exclude the last element from the array
+    for tx in range(0, len(times[2:])-1):
+        interpold_time = np.append(interpold_time, np.linspace(times[tx], times[tx+1], n, endpoint=False))
+    # Now need to add the final time value in the array
+    interpold_time = np.append(interpold_time, [times[len(times)]])
+
+    ### Now fill output up for each time point ### 
+
+    # First enter in the values for track trajectories. These are needed to calculate interpolated coordinates.
+    for cell in cells:
+        # Subset by the cell's identity
+        cell_data = data[data['TrackID'] == cell]
+        for time in times:
+            # Then for each specific time, get the coordinates, and write to the output array
+            snapshot = cell_data[cell_data['Time'] == time]
+            x, y, z = cell_data["Position X Reference Frame", 
+                        "Position Y Reference Frame",
+                        "Position Z Reference Frame"].to_numpy(dtype=float)
+            # Get the coordinates for the output array
+            col = np.where(interpold_time == float(time))
+            row = cells.index(cell)
+            # Now write to it
+            output[row, col] = [float(time), x, y, z, cell]
+
+    # Now for all other times, interpolate
+    for c in range(0, n_rows):
+        # Interpolate between the initial condition and the next non-zero coordinates
+        # Find the indices of non-zero elements
+        non_zeros = np.non_zero(output[c]) # This returns 2-tuples
+        # Find the row, col coordinates of each non-zero point
+        i = 0 
+        coords = []
+        while i <= len(non_zeros): # TODO first check that len(non_zeros) % 5 == 0
+            coords.append(non_zeros[i][0])
+            i += 5  # NOTE - we assume there are ALWAYS 5 elements in each non-zero entry.
+        # Now get each successive pair of coordinates from coords, and interpolate
+        for j in range(1, len(coords)+1):
+            # matrix coordinates
+            lower = coords[j-1]
+            upper = coords[j]
+            # time values
+            t_lower = output[]
+
+
+            
+
+
+
+
+
+
+
+
+
 # Now we want to get the cells in our system and define a neighbours array for each
 # Will do this by an nxn matrix for the n cells in the system at time t
 
@@ -55,6 +132,7 @@ def get_neighbours_array(t, path_to_data_file, r=20):
 
     Output: nxn array with entries 0 and 1. 
     """
+    # TODO take time x cells x 3 array as input instead
     # TODO maybe allow plotting of the connectivity graph over time?
     # Load the dataframe
     data = pd.read_csv(path_to_data_file)
@@ -99,4 +177,5 @@ def get_neighbours_array(t, path_to_data_file, r=20):
         # update cell i index
         i += 1
     return output
-    
+
+# Now simulate the system 
