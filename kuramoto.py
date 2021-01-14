@@ -54,7 +54,7 @@ def interpolate_tracks(path_to_data_file, n=100):
     """
     # Need the position of each cell at successive time points
     data = pd.read_csv(path_to_data_file)
-    times = set(data['Time'])
+    times = list(set(data['Time']))
 
     # Initialise the output array
     # time in rows, cell identity in columns, each entry a length 5 array with t, x, y, z coords and identifier
@@ -65,10 +65,10 @@ def interpolate_tracks(path_to_data_file, n=100):
 
     # Now interpolate times, and create a large time array
     interpold_time = np.linspace(times[0], times[1], n, endpoint=False) # exclude the last element from the array
-    for tx in range(0, len(times[2:])-1):
+    for tx in range(1, len(times[2:])-1):
         interpold_time = np.append(interpold_time, np.linspace(times[tx], times[tx+1], n, endpoint=False))
     # Now need to add the final time value in the array
-    interpold_time = np.append(interpold_time, [times[len(times)]])
+    interpold_time = np.append(interpold_time, [times[len(times)-1]])
 
     ### Now fill output up for each time point ### 
 
@@ -79,44 +79,65 @@ def interpolate_tracks(path_to_data_file, n=100):
         for time in times:
             # Then for each specific time, get the coordinates, and write to the output array
             snapshot = cell_data[cell_data['Time'] == time]
-            x, y, z = cell_data["Position X Reference Frame", 
-                        "Position Y Reference Frame",
-                        "Position Z Reference Frame"].to_numpy(dtype=float)
-            # Get the coordinates for the output array
-            col = np.where(interpold_time == float(time))
-            row = cells.index(cell)
-            # Now write to it
-            output[row, col] = [float(time), x, y, z, cell]
+            # need to check for the times where we have no data
+            if snapshot.empty:
+                continue
+            else:
+                x, y, z = snapshot[["Position X Reference Frame", 
+                            "Position Y Reference Frame",
+                            "Position Z Reference Frame"]].to_numpy(dtype=float)[0] # [0] important here - DON'T lose it
+                # Get the coordinates for the output array
+                col = np.where(interpold_time == float(time))
+                row = cells.index(cell)
+                # Now write to it
+                output[row, col] = [float(time), x, y, z, cell]
 
     # Now for all other times, interpolate
     for c in range(0, n_rows):
         # Interpolate between the initial condition and the next non-zero coordinates
         # Find the indices of non-zero elements
-        non_zeros = np.non_zero(output[c]) # This returns 2-tuples
-        # Find the row, col coordinates of each non-zero point
-        i = 0 
-        coords = []
-        while i <= len(non_zeros): # TODO first check that len(non_zeros) % 5 == 0
-            coords.append(non_zeros[i][0])
-            i += 5  # NOTE - we assume there are ALWAYS 5 elements in each non-zero entry.
-        # Now get each successive pair of coordinates from coords, and interpolate
-        for j in range(1, len(coords)+1):
+        # Line below returns two arrays - one with coordinate along output[c], and the other coordinates in each entry
+        # Only want the first one
+        non_zeros = list(np.nonzero(output[c])[0])
+        # Find the col (aka time) coordinate of each non-zero point
+        # define coordinates vector as a set, so as to allow storage of many different time coordinates
+        coords = set()  
+        for non_zero in non_zeros:
+            coords.add(non_zero) # column coordinate
+        coords = list(coords) # to allow indexing
+        # Now get each successive pair of coordinates
+        for j in range(0, len(coords)-1):
             # matrix coordinates
-            lower = coords[j-1]
-            upper = coords[j]
+            lower = coords[j]
+            upper = coords[j+1]
             # time values
-            t_lower = output[]
-
-
-            
-
-
-
-
-
-
-
-
+            t_lower = interpold_time[lower]
+            t_upper = interpold_time[upper]
+            # cartesian coordinates
+            xl, yl, zl = output[c, lower][1:4] # TODO check for the NaN case after this
+            xu, yu, zu = output[c, upper][1:4]
+            X_l = [xl, yl, zl]
+            X_u = [xu, yu, zu]
+            # Now find out the time points we need to interpolate for, between t_lower and t_upper
+            interpolations = interpold_time[lower+1:upper] # omit element with index 'lower', as it's specified by raw data
+            # now for each time point between t_lower and t_upper, calculate the new x,y,z coordinates
+            for t in range(0, len(interpolations)):
+                time = interpolations[t]
+                # Need a for loop to add vectors together to get the new coordinates
+                new_coordinates = []
+                for i in range(0, len(X_l)): # NOTE - assumes that len(Xl) == len(Xu) TODO - write a check before this
+                    new_coordinate = X_l[i] + (X_u[i] - X_l[i]) * time / t_upper # equation of a straight line in 3D
+                    new_coordinates.append(new_coordinate)
+                x, y, z = new_coordinates
+                output[c, t+lower+1] = [time, x, y, z, cells[c]]
+    # Now change all 0 values to NaN, as these cells do not exist at this time point
+    for i in range(0, n_rows):
+        for j in range(0, n_cols):
+            if output[i,j, 0]==0 and output[i,j, 1]==0 and output[i,j,2]==0 and output[i,j,3]==0 and output[i,j,4]==0:
+                output[i,j] = np.array(['NaN', 'NaN', 'NaN', 'NaN', 'NaN'])
+    # As the above takes forever to execute, save the numpy array for future use
+    np.save("interpolated_tracks.npy", output)
+    return output
 
 # Now we want to get the cells in our system and define a neighbours array for each
 # Will do this by an nxn matrix for the n cells in the system at time t
