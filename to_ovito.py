@@ -1,17 +1,17 @@
 import ovito 
 
 # want to import the files into ovito 
-pipeline = ovito.io.import_file("Snapshots_genes/snapshot_t*.xyz", 
-    columns = ["Position.X", "Position.Y", "Position.Z", "Color"])
-# # Now we want to change the radius of cells in the simulation
-# # Get the particle data to manipulate it:
-# data = pipeline.source.data
+pipeline = ovito.io.import_file("Snapshots/snapshot_t*.xyz", 
+    columns = ["Position.X", "Position.Y", "Position.Z", "Particle Type"])
+# Now we want to change the radius of cells in the simulation
+# Get the particle data to manipulate it:
+# data = pipeline.source.data.particles
 # particle_info = data.particles.particle_types.types
 # # Now change the radius - start with setting it to 2 for all cells
 # # Obviously radii are different in vivo, but for illustration we try at 2
 # for ptype in particle_info:
 #     ptype.radius = 2.0 
-# TODO figure out why some cells are different sizes? Looks like they're new cells
+# # TODO figure out why some cells are different sizes? Looks like they're new cells
 # Now load the data into the renderer
 pipeline.add_to_scene()
 
@@ -23,7 +23,7 @@ background_colour = [0.239, 0.239, 0.239] # default grey is 0.239, 0.239, 0.239 
 # Set the resolution here - put it to 1080p for default
 resolution = [1920, 1080] # this is the standard 1920x1080 pixels (x,y)
 # Now render the animation and save it as you wish - can be .mp4, .mov, .avi, .gif 
-file_name = "animation.avi"
+file_name = "animation.gif"
 # Now render the animation - can adjust the fps here if you wish
 # TODO choose a best renderer - ovito gives us two options
 vp.render_anim(file_name, size=resolution, fps=20, background=background_colour)

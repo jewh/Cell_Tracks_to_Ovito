@@ -10,14 +10,17 @@ Plotting the output of this is handled by ovito.
 """
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import ovito.io as ov
+import scipy.integrate as sci
+import random as rd
+
+rd.seed(0)
 
 class Cell:
     # TODO maybe remove the time argument and allow us to call a track for a single cell?
     def __init__(self, identifier, path_to_data):
         self.id = identifier
         self.path_to_data = path_to_data
+        self.intrinsic_frequency = rd.randint(0, 10)/10 #TODO allow this to vary with cell ID
 
     def trajectory(self):
         """
@@ -52,6 +55,61 @@ class Cell:
                 x, y, z = row[0:3]
                 return x, y, z
         return 'NaN', 'NaN', 'NaN'
+
+    def neighbours(self, time, radius=20):
+        """
+        Gets the cells within a certain radius of the cell nucleus.
+
+        Input: time, radius around the nucleus in which to look for neighbours (um)
+        Output: list of Cell objects.
+        """
+        # check if the cell is defined at that time
+        # If not, return NaN
+        if self.position(time) == ("NaN", "NaN", "NaN"):
+            return 'NaN'
+        else:
+            # Search through the input data file for cells that are neighbours at that time
+            data = pd.read_csv(self.path_to_data)
+            time_slice = data[data["Time"] == time]
+            other_cells = time_slice[time_slice["TrackID"] != self.id]
+            # now check these other cells for ones within a defined radius
+            # Need to convert to numpy array for easy for looping
+            other_cells = other_cells[[
+                "Position X Reference Frame", 
+                "Position Y Reference Frame",
+                "Position Z Reference Frame",
+                "TrackID"]].to_numpy()
+            # now check for each triplet of coordinates if the difference in position is <=radius um
+            xi, yi, zi = self.position(time)
+            neighbours = []
+            for row in other_cells:
+                x, y, z, ident = row[0:4]
+                if np.sqrt((x - xi)**2 + (y - yi)**2 + (z - zi)**2) <= radius:
+                    neighbours.append(Cell(ident, self.path_to_data)) # 
+            return neighbours
+
+
+    def gene_expression(self, radius=20):
+        """
+        Models the gene expression in this cell, as a function of the neighbouring cells over time
+
+        Input: radius in which to search around nuclei for neighbours. 
+
+        Output: 1D array of gene expression in this cell object.
+        """
+        
+        
+
+
+
+
+
+
+
+
+
+
+
 
 def plot_cells(time, path_to_data):
     # First get the cell IDs
